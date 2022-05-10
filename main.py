@@ -1,47 +1,51 @@
-import torch
-import numpy as np
-import random
-
-import argparse
-from itertools import product
-from entpoolGNN import entpoolGNN
-from data.dataset import GNNDataset, myBatch
-
-import wandb
-
-wandb_log = False
-
 import torch_geometric
-from torch_geometric.datasets import TUDataset
-from torch_geometric.loader import DataLoader
 import numpy as np
 import torch
 import torch.optim as optim
-
-import pandas as pd
 from sklearn.model_selection import StratifiedKFold
-
 import time
+import wandb
+import argparse
+import os
+import datetime
 
-from params import *
+from entpoolGNN import entpoolGNN
+from data.dataset import GNNDataset, myBatch
+from print_hook import PrintHook
+from params import args
 
+wandb_log = False
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
-
 criterion = torch.nn.CrossEntropyLoss()
 
-log_name = 'log/' + config['dataset'] + str(time.time()).split('.')[0] + '.log'
+log_dir = 'log/' + args.dataset
+
+if not os.path.isdir(log_dir):
+    os.makedirs(log_dir)
+
+log_dir = log_dir + '/log' + str(datetime.datetime.now()).split('.')[0] + '.txt'
+log_dir = log_dir.replace(':', '-')
+log_file = open(log_dir, 'w')
 
 
-def log(s):
-    with open(log_name, 'a') as fp:
-        fp.write(s + '\n')
+def my_hook_out(text):
+    log_file.write(text)
+    log_file.flush()
+    return 1, 0, text
+
+
+ph_out = PrintHook()
+ph_out.Start(my_hook_out)
+# print(args)
+for arg in vars(args):
+    print(arg + '=' + str(getattr(args, arg)))
 
 
 def train(model, optimizer, train_dataset):
     model.train()
     loss_sum = 0
-    for t in range(config['iters_per_epoch']):
-        selected_idx = np.random.permutation(len(train_dataset))[:config['batch_size']]
+    for t in range(args.iters_per_epoch):
+        selected_idx = np.random.permutation(len(train_dataset))[:args.batch_size]
         data_list = [train_dataset[i] for i in selected_idx]
         # batch = torch_geometric.data.Batch.from_data_list(data_list)
         batch = myBatch(data_list)
@@ -59,7 +63,7 @@ def test(model, dataset):
     model.eval()
     correct = 0
     loss_sum = 0
-    batch_size = config['batch_size']
+    batch_size = args.batch_size
     cnt = int(np.ceil(len(dataset) / batch_size))
     for i in range(cnt):
         a = i * batch_size
@@ -80,7 +84,7 @@ def test(model, dataset):
 if __name__ == '__main__':
     # wandb.init(project=config['dataset'], entity="zzq229", config=config)
 
-    dataset = GNNDataset(name=config['dataset'], k=config['depth'], cleaned=True)
+    dataset = GNNDataset(name=args.dataset, k=args.depth, cleaned=args.cleaned)
 
     torch.manual_seed(0)
     np.random.seed(0)
@@ -94,32 +98,33 @@ if __name__ == '__main__':
     idx_list = []
     for idx in skf.split(np.zeros(len(labels)), labels):
         idx_list.append(idx)
-    train_idx, test_idx = idx_list[fold_idx]
 
-    train_dataset = [dataset[i] for i in train_idx]
-    test_dataset = [dataset[i] for i in test_idx]
-
-    # model = GINNet(input_dim=dataset.num_features,
-    #                hidden_dim=config['hidden_dim'],
-    #                num_layers=config['num_layers'],
-    #                output_dim=dataset.num_classes,
-    #                dropout=config['dropout'],
-    #                ).to(device)
-    model = entpoolGNN(dataset, config['hidden_dim']).to(device)
-    optimizer = optim.Adam(model.parameters(), lr=config['lr'])
-    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=50, gamma=0.5)
     accs = []
-    log(str(config))
-    mx_test_acc = 0
-    for e in range(config['epoch']):
-        scheduler.step()
-        train_loss = train(model, optimizer, train_dataset)
-        train_acc, t = test(model, train_dataset)
-        test_acc, test_loss = test(model, test_dataset)
-        accs.append(test_acc)
-        mx_test_acc = max(mx_test_acc, test_acc)
-        # wandb.log({"train_loss": train_loss, "train_acc": train_acc, "test_acc": test_acc, "test_loss": test_loss})
-        log(' Epoch: {:03d}, Train Loss: {:.7f}, '
-            'Train Acc: {:.7f}, Test Acc: {:.7f}, Test Loss: {:.7f}   Max Test Acc: {:.7f}'.format(e, train_loss, train_acc, test_acc, test_loss, mx_test_acc))
-        print(' Epoch: {:03d}, Train Loss: {:.7f}, '
-              'Train Acc: {:.7f}, Test Acc: {:.7f}, Test Loss: {:.7f}   Max Test Acc: {:.7f}'.format(e, train_loss, train_acc, test_acc, test_loss, mx_test_acc))
+    for fold_idx in args.fold_idx:
+        print('-----fold_idx = %d-------' % fold_idx)
+        train_idx, test_idx = idx_list[fold_idx]
+
+        train_dataset = [dataset[i] for i in train_idx]
+        test_dataset = [dataset[i] for i in test_idx]
+
+        model = entpoolGNN(dataset, args.hidden_dim).to(device)
+        optimizer = optim.Adam(model.parameters(), lr=args.lr)
+        scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=50, gamma=0.5)
+        # log(str(config))
+        mx_test_acc = 0
+        for e in range(args.epoch):
+            scheduler.step()
+            train_loss = train(model, optimizer, train_dataset)
+            train_acc, t = test(model, train_dataset)
+            test_acc, test_loss = test(model, test_dataset)
+            accs.append(test_acc)
+            mx_test_acc = max(mx_test_acc, test_acc)
+            # wandb.log({"train_loss": train_loss, "train_acc": train_acc, "test_acc": test_acc, "test_loss": test_loss})
+            # log(' Epoch: {:03d}, Train Loss: {:.7f}, '
+            #     'Train Acc: {:.7f}, Test Acc: {:.7f}, Test Loss: {:.7f}   Max Test Acc: {:.7f}'.format(e, train_loss, train_acc, test_acc, test_loss, mx_test_acc))
+            print(' Epoch: {:03d}, Train Loss: {:.7f}, '
+                  'Train Acc: {:.7f}, Test Acc: {:.7f}, Test Loss: {:.7f}   Max Test Acc: {:.7f}'.format(e, train_loss, train_acc, test_acc, test_loss, mx_test_acc))
+    len_idx = len(args.fold_idx)
+    accs = np.array(accs).reshape([len_idx, args.epoch])
+    accs = np.mean(accs, 0)
+    print(accs.argmax(), accs.max())

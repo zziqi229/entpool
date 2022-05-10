@@ -55,13 +55,13 @@ def graph2tree(input_):
             d += 1
             st = pn
     layer_edge = [data.edge_index]
-    # for i in range(k - 1):
-    #     edge = copy.deepcopy(layer_edge[-1])
-    #     edge = edge.reshape(-1)
-    #     for j in range(edge.shape[0]):
-    #         edge[j] = parent[edge[j]]
-    #     edge = edge.reshape(2, -1)
-    #     layer_edge.append(edge)
+    for i in range(k - 1):
+        edge = copy.deepcopy(layer_edge[-1])
+        edge = edge.reshape(-1)
+        for j in range(edge.shape[0]):
+            edge[j] = parent[edge[j]]
+        edge = edge.reshape(2, -1)
+        layer_edge.append(edge)
     data.edge_index = torch.cat(layer_edge, dim=1)
 
     return data

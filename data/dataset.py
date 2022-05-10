@@ -42,9 +42,11 @@ class GNNDataset(Dataset):
 
         path_p = osp.join(osp.dirname(osp.realpath(__file__)), 'processed', name + '_' + str(k) + '.pickle')
         if osp.exists(path_p) and cleaned == False:
+            print('load graph tree')
             with open(path_p, 'rb') as fp:
                 self.dataset = pickle.load(fp)
         else:
+            print('calc graph tree')
             pool = Pool(processes=8)
             self.dataset = pool.map(graph2tree, [(data, self.k) for data in dataset_raw])
             with open(path_p, 'wb') as fp:

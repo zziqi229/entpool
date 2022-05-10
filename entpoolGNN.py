@@ -5,7 +5,7 @@ import torch.nn.functional as F
 from torch.nn import Sequential, Linear, BatchNorm1d, ReLU
 
 from torch_geometric.nn import GINConv, JumpingKnowledge, global_add_pool
-from params import *
+from params import args
 
 
 class Block(torch.nn.Module):
@@ -92,7 +92,7 @@ class entpoolGNN(torch.nn.Module):
         # x = self.jump(xs)
         x = 0
         for i in range(len(xs)):
-            x += xs[i] * config['alpha'][i]
+            x += xs[i] * args.alpha[i]
         x = F.relu(self.lin1(x))
         x = F.dropout(x, p=0.5, training=self.training)
         x = self.lin2(x)
