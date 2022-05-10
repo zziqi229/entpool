@@ -1,0 +1,1 @@
+python main.py --dataset IMDB-BINARY && python main.py --dataset NCI1 --epochs 350
