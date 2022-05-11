@@ -4,7 +4,6 @@ import torch
 import torch.optim as optim
 from sklearn.model_selection import StratifiedKFold
 import time
-import wandb
 import argparse
 import os
 import datetime
@@ -18,27 +17,27 @@ wandb_log = False
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 criterion = torch.nn.CrossEntropyLoss()
 
-log_dir = 'log/' + args.dataset
 
-if not os.path.isdir(log_dir):
-    os.makedirs(log_dir)
+def make_log():
+    log_dir = 'log/' + args.dataset
 
-log_dir = log_dir + '/log' + str(datetime.datetime.now()).split('.')[0] + '.txt'
-log_dir = log_dir.replace(':', '-')
-log_file = open(log_dir, 'w')
+    if not os.path.isdir(log_dir):
+        os.makedirs(log_dir)
 
+    log_dir = log_dir + '/log' + str(datetime.datetime.now()).split('.')[0] + '.txt'
+    log_dir = log_dir.replace(':', '-')
+    log_file = open(log_dir, 'w')
 
-def my_hook_out(text):
-    log_file.write(text)
-    log_file.flush()
-    return 1, 0, text
+    def my_hook_out(text):
+        log_file.write(text)
+        log_file.flush()
+        return 1, 0, text
 
-
-ph_out = PrintHook()
-ph_out.Start(my_hook_out)
-# print(args)
-for arg in vars(args):
-    print(arg + '=' + str(getattr(args, arg)))
+    ph_out = PrintHook()
+    ph_out.Start(my_hook_out)
+    # print(args)
+    for arg in vars(args):
+        print(arg + '=' + str(getattr(args, arg)))
 
 
 def train(model, optimizer, train_dataset):
@@ -85,7 +84,7 @@ if __name__ == '__main__':
     # wandb.init(project=config['dataset'], entity="zzq229", config=config)
 
     dataset = GNNDataset(name=args.dataset, k=args.depth, cleaned=args.cleaned)
-
+    make_log()
     torch.manual_seed(0)
     np.random.seed(0)
     if torch.cuda.is_available():
@@ -94,7 +93,7 @@ if __name__ == '__main__':
     fold_idx = 0
     skf = StratifiedKFold(n_splits=10, shuffle=True, random_state=0)
 
-    labels = [graph.y for graph in dataset]
+    labels = [graph.y.item() for graph in dataset]
     idx_list = []
     for idx in skf.split(np.zeros(len(labels)), labels):
         idx_list.append(idx)

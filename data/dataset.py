@@ -1,4 +1,5 @@
 import os.path as osp
+import os
 import pickle
 import torch
 from torch.utils.data import Dataset
@@ -12,7 +13,7 @@ import numpy as np
 
 
 def getTUDataset(name, cleaned=False):
-    path = osp.join(osp.dirname(osp.realpath(__file__)), 'raw', name)
+    path = osp.join(osp.dirname(osp.realpath(__file__)), '..', 'raw', name)
     dataset = TUDataset(path, name, cleaned=cleaned)
     dataset.data.edge_attr = None
 
@@ -40,14 +41,17 @@ class GNNDataset(Dataset):
         self.num_features = dataset_raw.num_features
         self.num_classes = dataset_raw.num_classes
 
-        path_p = osp.join(osp.dirname(osp.realpath(__file__)), 'processed', name + '_' + str(k) + '.pickle')
+        path_p = osp.join(osp.dirname(osp.realpath(__file__)), '..', 'processed')
+        if not os.path.isdir(path_p):
+            os.makedirs(path_p)
+        path_p = osp.join(path_p, name + '_' + str(k) + '.pickle')
         if osp.exists(path_p) and cleaned == False:
             print('load graph tree')
             with open(path_p, 'rb') as fp:
                 self.dataset = pickle.load(fp)
         else:
             print('calc graph tree')
-            pool = Pool(processes=8)
+            pool = Pool()
             self.dataset = pool.map(graph2tree, [(data, self.k) for data in dataset_raw])
             with open(path_p, 'wb') as fp:
                 pickle.dump(self.dataset, fp)
